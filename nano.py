@@ -1,83 +1,82 @@
 import os
 import collections
+import itertools
+import time
 
-# The maze for the agent to solve
 grid = [
-    ['#', 'S', ' ', ' ', '#'],
+    ['#', 'S', '1', '1', '#'],
     [' ', '1', ' ', '#', '#'],
-    ['#', ' ', ' ', '1', 'E'],
-    ['#', '#', ' ', ' ', '#'],
+    ['#', '1', '1', '1', 'E'],
+    ['#', '#', '', ' ', '#'],
 ]
 
-def find_start_position(grid):
-    """
-    Finds the starting 'S' in the grid using simple loops.
-    Returns a tuple (row, col) or None if not found.
-    """
+def find_positions(grid, target):
+    positions = []
     for r, row in enumerate(grid):
         for c, cell in enumerate(row):
-            if cell == 'S':
-                return (r, c)
-    return None
+            if cell == target:
+                positions.append((r, c))
+    return positions
 
-def solve_with_bfs(grid):
-    """
-    Finds the shortest path from 'S' to 'E' using BFS.
-    """
-    start_pos = find_start_position(grid)
-    if not start_pos:
-        print("Error: Start 'S' not found.")
-        return None
-
-    # Set up the queue with the initial path (containing only the start position)
-    queue = collections.deque([ [start_pos] ])
-    visited = {start_pos}
-
-    # Process the queue until a path to 'E' is found
+def bfs(grid, start, goal):
+    queue = collections.deque([[start]])
+    visited = {start}
     while queue:
-        current_path = queue.popleft()
-        r, c = current_path[-1] # Our current position
-
-        # Check for the goal
-        if grid[r][c] == 'E':
-            return current_path # Success! Return the shortest path.
-
-        # Explore neighbors (Right, Down, Left, Up)
-        for next_r, next_c in [(r, c + 1), (r + 1, c), (r, c - 1), (r - 1, c)]:
-            # Check if the neighbor is valid and has not been visited
-            if (0 <= next_r < len(grid) and 0 <= next_c < len(grid[0])) and \
-               grid[next_r][next_c] != '#' and (next_r, next_c) not in visited:
-                
-                visited.add((next_r, next_c))
-                # Create the new path and add it to the queue to be explored
-                new_path = current_path + [(next_r, next_c)]
-                queue.append(new_path)
-    
-    # If the queue becomes empty, 'E' is unreachable
+        path = queue.popleft()
+        r, c = path[-1]
+        if (r, c) == goal:
+            return path
+        for nr, nc in [(r, c+1), (r+1, c), (r, c-1), (r-1, c)]:
+            if 0 <= nr < len(grid) and 0 <= nc < len(grid[0]) and grid[nr][nc] != '#' and (nr, nc) not in visited:
+                visited.add((nr, nc))
+                queue.append(path + [(nr, nc)])
     return None
 
-# --- Main Program Execution ---
-print("Agent is finding the shortest path from 'S' to 'E' using BFS...")
-solution_path = solve_with_bfs(grid)
+def find_best_path_collecting_ones(grid):
+    start = find_positions(grid, 'S')[0]
+    end = find_positions(grid, 'E')[0]
+    ones = find_positions(grid, '1')
+    shortest_full_path = None
+    for perm in itertools.permutations(ones):
+        full_path = []
+        current = start
+        success = True
+        for target in list(perm) + [end]:
+            segment = bfs(grid, current, target)
+            if segment is None:
+                success = False
+                break
+            if full_path:
+                full_path += segment[1:]
+            else:
+                full_path += segment
+            current = target
+        if success and (shortest_full_path is None or len(full_path) < len(shortest_full_path)):
+            shortest_full_path = full_path
+    return shortest_full_path
 
-if solution_path:
-    print("Agent found the shortest path!")
+def print_grid_with_s(grid, pos):
     
-    # After the path is found, calculate the score based on that path
-    score = sum(1 for r, c in solution_path if grid[r][c] == '1')
-    
-    # Display the final grid with the path marked by '*'
-    os.system('cls' if os.name == 'nt' else 'clear')
-    display_grid = [row[:] for row in grid]
-    for r, c in solution_path:
-        if display_grid[r][c] not in ('S', 'E'):
-            display_grid[r][c] = '*'
-    
-    for row in display_grid:
-        print(' '.join(row))
-        
-    print(f"\nPath: {solution_path}")
-    print(f"Path Length: {len(solution_path) - 1} steps")
-    print(f"Final Score: {score}")
+    for r, row in enumerate(grid):
+        line = []
+        for c, cell in enumerate(row):
+            if (r, c) == pos:
+                line.append('S')
+            elif cell == 'S':
+                line.append(' ')  # Remove old S position
+            else:
+                line.append(cell if cell else ' ')
+        print(' '.join(line))
+    print()
+
+print("Finding path for S to collect all 1s and reach E...")
+path = find_best_path_collecting_ones(grid)
+
+if path:
+    for step_num, position in enumerate(path):
+        print_grid_with_s(grid, position)
+        print(f"Step {step_num+1}/{len(path)}")
+        time.sleep(2)  # Pause between moves
+    print("Path complete!")
 else:
-    print("Agent could not find a path to 'E'.")
+    print("No path found.")
